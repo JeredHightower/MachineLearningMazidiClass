@@ -1,4 +1,4 @@
-# MachineLearningMazidiClass
+# ML_Portfolio
  Repository for Mazidi's machine learning class. CS 4375
 
 ## Portfolio Component 0: Overview of ML
