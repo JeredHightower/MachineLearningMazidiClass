@@ -1,0 +1,114 @@
+---
+title: "Regression"
+author: "Haniyyah Hamid & Jered Hightower"
+date: "9/26/2022"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+editor_options:
+  chunk_output_type: inline
+---
+
+## How Linear Regression Works and What Its Strengths and Weaknesses Are
+A linear regression model tries to find a linear relationship between two quantitative values, x and y. A linear relationship can be explained with this model using parameters w and b, where w is the slope of the line that measures the change of y over change in x, and b is the intercept. Some strengths of linear regression is that the coefficients quantify the effect of the predictors on the target variable, it works well when the data points fall in a linear pattern, and it typically has low variance. A major weakness of linear regression is its bias as this model assumes the data is linear. \*
+
+## Read the CSV file with Data
+The link for this data set: https://www.kaggle.com/datasets/umairnsr87/predict-the-number-of-upvotes-a-post-will-get?select=train_NIR5Yl1.csv
+
+```{r}
+UpvotesSet <- read.csv(file = 'train.csv')
+```
+
+### 80/20 Train/Test
+```{r}
+set.seed(1234)
+i <- sample(1:nrow(UpvotesSet), nrow(UpvotesSet) * 0.80, replace=FALSE)
+train <- UpvotesSet[i, ]
+test <- UpvotesSet[-i, ]
+```
+
+### 5 R functions for Data Exploration for the Reputation and Upvotes
+```{r}
+sum(UpvotesSet$Reputation)
+mean(UpvotesSet$Reputation)
+median(UpvotesSet$Reputation)
+range(UpvotesSet$Reputation)
+
+sum(UpvotesSet$Upvotes)
+mean(UpvotesSet$Upvotes)
+median(UpvotesSet$Upvotes)
+range(UpvotesSet$Upvotes)
+
+cor(UpvotesSet$Reputation, UpvotesSet$Upvotes)
+```
+
+### Plotting 2 graphs
+```{r}
+par(mfrow=c(1,2))
+plot(UpvotesSet$Reputation, UpvotesSet$Upvotes, xlab="Reputation", ylab="Upvotes")
+plot(UpvotesSet$Views, UpvotesSet$Upvotes, xlab="Views", ylab="Upvotes")
+```
+
+## Creating a Linear Regression model
+```{r}
+lm1 <- lm(Upvotes~Reputation, data=train )
+summary(lm1)
+```
+
+The relatively low p-value shows to us that we should reject the null hypothesis. The RSE value is 3614 which is the average deviation between the real outcome and the regression line calculated. The R\^2 value is closer to 0, meaning the variance in the model is not explained by the predictors for the most part.
+
+### Plotting residuals
+```{r}
+par(mfrow=c(2,2))
+plot(lm1)
+```
+
+Based off the Residuals vs Fitted graph, we can see that there is clearly a non-linear relationship between the predictor and outcome as the residuals are not evenly distributed by the horizontal line as much as they should. No pattern is visible. Based off the Normal Q-Q graph, we see the residuals are not entirely normally distributed. We see that around the end that the residuals curved more upwards towards higher values. Several residuals deviate from the line. Based off the Scale-Location graph, similarly we see the spread of residuals are more scattered than equally balanced around the line. Based off the Residuals vs Leverage graph, we can see there are not many outliers on the right side of the graph, and most residuals are clustered to the bottom left.
+
+## Building a multiple linear regression model to see the effect of both Reputation and \# of views on \# of upvotes
+
+```{r}
+lm2 <- lm(Upvotes~Reputation+Views, data=train)
+summary(lm2)
+```
+
+### Plotting residuals for lm2
+```{r}
+par(mfrow=c(2,2))
+plot(lm2)
+```
+
+## Building a multiple linear regression model to see the effect of Reputation, \# of views, and \# of answers on \# of upvotes
+```{r}
+lm3 <- lm(Upvotes~Reputation+Views+Answers, data=train)
+summary(lm3)
+```
+
+### Plotting residuals for lm3
+```{r}
+par(mfrow=c(2,2))
+plot(lm3)
+```
+
+## Comparing the 3 linear models
+We see that the more predictors we add to the regression model, the more we see R\^2 increase. There is specifically an increase in R\^2 when we check the predictor Views against the output. This R\^2 value, 0.2412, is not close to 1 so we cannot say that the variance in the model is explained by the predictors for the most part. But with a massive jump from 0.06988 to 0.2412 when the View predictor was added proves that it has definitely some sort of an impact on the output. We see with lm3, that adding another predictor does not effect the R\^2 value any further. Therefore, we see that lm2 is the best of the 3 linear models created.
+
+## Evaluation of test data
+```{r}
+lm1Cor <- cor(UpvotesSet$Reputation, UpvotesSet$Upvotes)
+lm1MSE <- mean((UpvotesSet$Reputation - UpvotesSet$Upvotes)^2)
+print(paste("LM1 Correlation: ", lm1Cor))
+print(paste("LM1 MSE: ", lm1MSE))
+lm2Cor <- cor(UpvotesSet$Reputation + UpvotesSet$Views, UpvotesSet$Upvotes)
+lm2MSE <- mean((UpvotesSet$Reputation + UpvotesSet$Views - UpvotesSet$Upvotes)^2)
+print(paste("LM2 Correlation: ", lm2Cor))
+print(paste("LM2 MSE: ", lm2MSE))
+
+lm3Cor <- cor(UpvotesSet$Reputation + UpvotesSet$Views + UpvotesSet$Answers, UpvotesSet$Upvotes)
+lm3MSE <- mean((UpvotesSet$Reputation + UpvotesSet$Views + UpvotesSet$Answers - UpvotesSet$Upvotes)^2)
+print(paste("LM3 Correlation: ", lm3Cor))
+print(paste("LM3 MSE: ", lm3MSE))
+```
+
+We can see that the correlation clearly increased with the second linear model, proving that the number of views has an impact on the number of upvotes to a degree. The MSE value also increased greatly from lm1 to lm2, proving this further. In conclusion, a linear model does not fit this data set well based on our results, but there is clearly some sort of correlation and impact on the number of votes on the basis of reputation of the user and the number of views the user gets.

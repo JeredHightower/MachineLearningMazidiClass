@@ -1,0 +1,244 @@
+---
+title: "Classification"
+author: "Jered Hightower & Haniyyah Hamid"
+date: "9/26/2022"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+https://www.kaggle.com/datasets/datasnaek/chess
+
+This notebook explores Chess data from Kaggle
+
+## How Linear Models for Classification Work: Strengths and Weaknesses
+Linear models for classification find a decision boundary between classes. As with any other linear algorithm, it will perform poorly where there are non-linear relationships, it's biased. However, logistic regression is strong when the data is linear and are fairly easy to interpret.
+
+
+### Import our Data Set
+```{r}
+df <- read.csv("games.csv")
+str(df)
+```
+
+### Data Cleanup
+Subset data frame and make factors into factors. Make target binomial
+```{r}
+df <- df[,c(2, 5, 6, 7, 10, 12, 16)]
+df$rated <- factor(tolower(df$rated))
+df$victory_status <- factor(df$victory_status)
+df$winner <- factor(df$winner)
+
+# New Rating Difference Factor (Positive: Black Favored, Negative: White Favored)
+df$rating_difference <- df$black_rating- df$white_rating
+# Remove White, Black Ratings and Victory Status
+df <- df[,c(1, 2, 4, 7, 8)]
+
+# Combine White and Draw Factors
+levels(df$winner) <- c("black", "not black", "not black") 
+
+str(df)
+```
+
+### Divide into Train and Test
+```{r}
+set.seed(1234)
+i <- sample(1:nrow(df), nrow(df)*.8, replace = FALSE)
+
+train <- df[i, ]
+test <- df[-i, ]
+```
+
+### Data Exploration
+A look at some of the data
+```{r}
+head(df)
+```
+
+#### Proportion of How Often Black Won
+```{r}
+counts <- table(df$winner)
+counts <- counts / sum(counts)
+counts[1]
+```
+This is what we hope our model beats in accuracy.
+
+#### Average Rating Difference
+```{r}
+mean(df$rating_difference)
+```
+Slightly in favor of white.
+
+#### Median Rating Difference
+```{r}
+median(df$rating_difference)
+```
+Seems matchmaking is distributed fairly evenly (which would make sense, avg and median are similar).
+
+#### The Biggest Difference in Ratings
+```{r}
+range(df$rating_difference)
+```
+This represents the biggest skill gap there was in some games (Yikes...).
+
+#### Correlation between Rating Difference and Turns
+```{r}
+cor(abs(df$rating_difference), df$turns)
+```
+Do bigger skill gaps lead to quicker games? There's a little correlation.
+
+#### How Often Black Wins (if higher rated)
+```{r}
+rate <- ifelse(df$rating_difference > 0, 1, -1)
+win <- ifelse(df$winner=="black", 1, 0)
+rightful <- sum(rate==win) / sum(win)
+print(paste("Proportion of games black wins when higher rated", rightful))
+```
+
+#### Plots
+```{r}
+par(mfrow=c(1, 2))
+plot(df$winner, df$rating_difference, xlab = "winner", ylab = "rating_difference")
+plot(df$rated, df$turns, xlab = "rated", ylab = "turns")
+```
+
+A rating difference that favors black seems to imply that black will win more often.
+A rated game also looks like it tends to last just a bit longer than non-rated games.
+
+## Logistic Regression Model
+```{r}
+library(caret)
+
+# Predict if Black Wins or Not
+glm1 <- glm(winner~., data = train, family = "binomial")
+summary(glm1)
+```
+
+### Evaluate on the test set
+```{r}
+probs <- predict(glm1, newdata=test, type="response")
+pred <- ifelse(probs>0.5, "not black", "black")
+acc <- mean(pred==test$winner)
+print(paste("accuracy = ", acc))
+```
+
+### Sensitivity, Specificity & Kappa
+```{r}
+caret:: confusionMatrix(as.factor(pred), reference=test$winner)
+```
+
+### ROC Curve and AUC
+```{r}
+library(ROCR)
+pr <- prediction(probs, test$winner)
+# TPR = Sensitivity, FPR=Specificity
+prf <- performance(pr, measure = "tpr", x.measure ="fpr")
+plot(prf)
+
+auc <- performance(pr, measure ="auc")
+auc <- auc@y.values[[1]]
+auc
+```
+
+### Matthew's Correlation Coefficient
+```{r}
+library(ModelMetrics)
+predbin <- ifelse(pred=="black", 1, 0)
+realbin <- ifelse(test$winner=="black", 1, 0)
+
+mcc(realbin, predbin, .5)
+```
+
+### Model Summary
+The summary shows us that R believes rating_difference is our best predictor. It also thinks opening_ply (number of moves in the opening phase) is a good predictor. The Null Deviance and Residual Deviance are measures of how well our model fits the data with only the intercept and with all predictors. Lower Deviance is better. Using them we can calculate that the p-value is close to zero meaning this model may be useful for prediction. This is shown by our decent accuracy. AIC also measures how well our model fits the data but its relative to other models. Lower AIC is better.
+
+## Naive Bayes
+```{r}
+library(e1071)
+
+# Predict if Black Wins or Not
+nb1 <- naiveBayes(winner~., data=train)
+nb1
+```
+
+### Evaluate on the test set
+```{r}
+p1 <- predict(nb1, newdata=test, type="class")
+acc <- mean(p1==test$winner)
+print(paste("accuracy = ", acc))
+```
+
+### Sensitivity, Specificity & Kappa
+```{r}
+caret:: confusionMatrix(as.factor(p1), reference=test$winner)
+```
+
+### ROC Curve and AUC
+```{r}
+predvec <- ifelse(p1=="black", 1, 0)
+realvec <- ifelse(test$winner=="black", 1, 0)
+
+pr <- prediction(predvec, realvec)
+# TPR = Sensitivity, FPR=Specificity
+prf <- performance(pr, measure = "tpr", x.measure ="fpr")
+plot(prf)
+
+auc <- performance(pr, measure ="auc")
+auc <- auc@y.values[[1]]
+auc
+```
+
+
+### Matthew's Correlation Coefficient
+```{r}
+mcc(realvec, predvec, .5)
+```
+
+### Model Summary
+The A-priori probabilities are purely based on the distribution of black vs. not black (winning). This matches up with the proportion of black wins shown previously. There are conditional probabilities for each feature (TP, FP, FN, TN). We had fairly good accuracy for this model.
+
+## Comparing Results and Metrics of the Models
+
+#### Accuracy
+The Naive Bayes model had similar accuracy to the logistic regression model. However, their accuracy is almost exactly the same as the proportion of black wins when they were higher rated. This implies the other predictors had little effect on the model.
+
+#### Sensitivity and Specificity
+Both models has similar sensitivity and specificity. This implies they both captured a similar proportion of relevant items and were similarly precise.
+
+#### Kappa
+Both models had a Kappa value of around .275 meaning little to some data was predicted correctly and not just by chance. After all our accuracy was only about .20 greater than the proportion of black wins.
+
+#### ROC Curve and AUC
+The ROC Curve looks pretty similar between the models excluding the linearity of the Naive Bayes model curve. Both had a similar AUC (log reg = .71, bayes = .64) and we would prefer them to be closer to 1. Since they're working with the same data, it's not surprising their curves are similar (and the models as a whole).
+
+#### Matthew's Correlation Coefficient
+Both of their Matthew's Correlation Coefficients are also very similar around .28. Mcc accounts for class distribution and similar to their Kappa above, this implies that our models are a little better than a random prediction based on class distribution.
+
+## Strengths and Weaknesses of Logistic Regression
+Strengths of logistic regression includes how it can separate classes nicely if the classes themselves are linearly separable, it can be computationally inexpensive, and it can also have good probabilistic output.
+A weakness of logistic regression is that it is likely that it can under fit the data, meaning it may not be able to capture outliers and boundaries.
+
+## Strengths and Weaknesses of Naive Bayes
+Strengths of Naive Bayes includes how it can work well with small data sets, it is easy to implement and understand, and it can handle high dimensions.
+Weaknesses of Naive Bayes includes how it can be outperformed by other classifying models when it comes to large data sets, it makes guesses for values in the test set that may not have occurred in the training set, and if predictors are not independent then assumption that they are instead may reduce the overall performance of the algorithm.
+
+## Benefits and Drawbacks of
+
+### Accuracy
+Accuracy is a simple way of calculating the number of correct predictions out of the total number of examples.
+A drawback of this would be that it does not account for the differences in class distribution.
+
+### Sensitivity and Specificity
+The benefits of sensitivity and specificity is that they both measure the true positive and true negative rates simply respectively. They both help to quantify how much a class was misclassified during evaluation.
+A drawback of these is that they can be difficult to interpret and defining a good sensitivity and specificity is dependent on the data being used.
+
+### Kappa
+Kappa is beneficial when you need to quantify the agreement between two annotators of data, which is done by trying to adjust accuracy to account for the likelihood of a correct prediction by only chance.
+A drawback of Kappa is that it does not perform well with very skewed data sets. Even if observed agreement is relatively high, a skewed data set will make Kappa very low.
+
+### ROC Curve and AUC
+The ROC (Receiver Operating Characteristics) curve shows the trade off between predicting true positives while avoiding false positives. It helps us visualize the trade off we are making. The AUC (area under the curve) is a measure of how well we've classified our data.
+A drawback of ROC Curve and AUC is that they're dependent on the order of probabilities not the probabilities themselves. So even if probabilities are changed, if the order remained unchanged, the ROC curve and AUC should stay the same. This means it can't be used to compare models.
+
+### Matthew's Correlation Coefficient
+The MCC is beneficial since it accounts for the differences in class distribution, unlike accuracy. A drawback of this metric would be that its specific to binary classification only. MCC is also not suitable for imbalanced data sets.
