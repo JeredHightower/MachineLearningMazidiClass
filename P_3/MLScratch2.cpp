@@ -2,7 +2,8 @@
 #include <fstream>      // std::ifstream
 #include <string>       // std::string
 #include <vector>       // std::vector
-#include <math.h>       // sqrt
+#include <math.h>       // exp
+#include <chrono>       // time
 
 using namespace std;
 
@@ -18,7 +19,14 @@ void apply_sigmoid(double **array, size_t rows, size_t cols){
     }
 }
 
-void matrix_multiplication(int **array, size_t rows, size_t cols, double **array2, size_t col2, double **result){
+void apply_log_odds(double **array, size_t rows, size_t cols){
+    for(int r = 0; r < rows; r++){
+        for(int c = 0; c < cols; c++)
+            array[r][c] = exp(array[r][c]) / (1.0 + exp(array[r][c]));
+    }
+}
+
+void matrix_multiplication(double **array, size_t rows, size_t cols, double **array2, size_t col2, double **result){
     for(int r = 0; r < rows; r++)
         for (int j = 0; j < col2; j++){
             double sum = 0.0;
@@ -32,7 +40,7 @@ void matrix_multiplication(int **array, size_t rows, size_t cols, double **array
 
 }
 
-void transpose(int **array, size_t rows, size_t cols, int **result){
+void transpose(double **array, size_t rows, size_t cols, double **result){
     for(int c = 0; c < cols; c++)
         for(int r = 0; r < rows; r++)
             result[c][r] = array[r][c];
@@ -64,7 +72,7 @@ int main(int argc, char** argv) {
     vector<int> pclass(MAX_LEN);
     vector<int> survived(MAX_LEN);
     vector<int> sex(MAX_LEN);
-    vector<int> age(MAX_LEN);
+    vector<double> age(MAX_LEN); // might need to go back and fix this to be double :(
 
     // Try to open file
     cout << "titanic_project.csv" << endl;
@@ -97,7 +105,7 @@ int main(int argc, char** argv) {
         pclass.at(numObservations) = stoi(pclass_in);
         survived.at(numObservations) = stoi(survived_in);
         sex.at(numObservations) = stoi(sex_in);
-        age.at(numObservations) = stoi(age_in);
+        age.at(numObservations) = stod(age_in);
 
         numObservations++;
     }
@@ -125,11 +133,11 @@ int main(int argc, char** argv) {
     weight[1][0] = 1;
 
     // Predictor Sex
-    int **data_matrix;
-    data_matrix = new int *[800];
+    double **data_matrix;
+    data_matrix = new double *[800];
 
-    int **test_matrix;
-    test_matrix = new int *[246];
+    double **test_matrix;
+    test_matrix = new double *[246];
 
     // Target Survived
     int *train_labels;
@@ -141,14 +149,14 @@ int main(int argc, char** argv) {
     // Set Values
     for(int i = 0; i < 1046; i++){
         if(i < 800){
-            data_matrix[i] = new int[2];
+            data_matrix[i] = new double[2];
             data_matrix[i][0] = 1;
             data_matrix[i][1] = sex[i];
 
             train_labels[i] = survived[i];
         }
         else{
-            test_matrix[i - 800] = new int[2];
+            test_matrix[i - 800] = new double[2];
             test_matrix[i - 800][0] = 1;
             test_matrix[i - 800][1] = sex[i];
 
@@ -161,7 +169,13 @@ int main(int argc, char** argv) {
     // Gradient Descent
     double learning_rate = .001;
 
-    for(int i = 0; i < 1000; i++){
+    // Time
+    chrono::time_point<std::chrono::system_clock> start, end;
+    start = chrono::system_clock::now();
+
+    // Training
+    for(int i = 0; i < 10000; i++){
+
     // Memory allocation
     double **result;
     result = (double**)malloc(800*sizeof(double*));
@@ -174,10 +188,10 @@ int main(int argc, char** argv) {
     for (int i = 0; i<2; i++)
         result2[i] = (double*)malloc(1*sizeof(double));
 
-    int **result3;
-    result3 = (int**)malloc(2*sizeof(int*));
+    double **result3;
+    result3 = (double**)malloc(2*sizeof(double*));
     for (int i = 0; i<2; i++)
-        result3[i] = (int*)malloc(800*sizeof(int));
+        result3[i] = (double*)malloc(800*sizeof(double));
 
 
 
@@ -206,6 +220,9 @@ int main(int argc, char** argv) {
     free(result3);
 
     }
+    end = chrono::system_clock::now();
+    chrono::duration<double> seconds = end - start;
+    cout << "\nTraining Time: " << seconds.count() << "s\n";
 
 
 
@@ -214,21 +231,57 @@ int main(int argc, char** argv) {
 
 
     // Predict with the Weights we Generated
-    double **predicted;
-    predicted = (double**)malloc(246*sizeof(double*));
-    for (int i = 0; i<800; i++)
-        predicted[i] = (double*)malloc(1*sizeof(double));
+    double **probabilities;
+    probabilities = (double**)malloc(246*sizeof(double*));
+    for (int i = 0; i<246; i++)
+        probabilities[i] = (double*)malloc(1*sizeof(double));
 
-    matrix_multiplication(test_matrix, 246, 2, weight, 1, predicted);
-    // probabilities <- exp(predicted) / (1 + exp(predicted))
-    // predictions <- ifelse(probabilities > 0.5, 1, 0)
-    // mean(predictions == test_labels) ~ .7845528
+    matrix_multiplication(test_matrix, 246, 2, weight, 1, probabilities);
+    
+    apply_log_odds(probabilities, 246, 1);
+    
+    // Binarize
+    for(int i = 0; i < 246; i++)
+        if(probabilities[i][0] > .5)
+            probabilities[i][0] = 1;
+        else
+            probabilities[i][0] = 0;
+
+    // Accuracy ~ .7845528
+    double sum = 0;
+    for(int i = 0; i < 246; i++)
+        if(probabilities[i][0] == test_labels[i])
+            sum++;
+    
+    cout << "accuracy: " << sum / 246 << endl;
+
+    // Specificity & Sensitivity
+    double TN = 0, FP = 0, TP = 0, FN = 0;;
+    for(int i = 0; i<246; i++){
+        if(probabilities[i][0] == 0 && test_labels[i] == 0)
+            TN++;
+        if(probabilities[i][0] == 1 && test_labels[i] == 0)
+            FP++;
+        if(probabilities[i][0] == 1 && test_labels[i] == 1)
+            TP++;
+        if(probabilities[i][0] == 0 && test_labels[i] == 1)
+            FN++;
+    }
+
+    double specificity = (TN / (TN + FP));
+    double sensitivity = (TP / (TP + FN));
+
+    cout << "specificity: " << specificity << endl;
+    cout << "sensitivity: " << sensitivity << endl;
 
 
     // Free Memory
-    for(int i=0;i<800;i++)
-        free(predicted[i]);
-    free(predicted);
+    for(int i=0;i<246;i++)
+        free(probabilities[i]);
+    free(probabilities);
+
+    /////////////////////////////////////////
+    // Naive Bayes
 
     /////////////////////////////////////////
 
