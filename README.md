@@ -24,4 +24,4 @@ You can find my code for logistic regression [here](P_3/MLScratch2.cpp)
 
 You can find my code for naive bayes [here](P_3/NaiveBayes.cpp)
 
-You can find the accompanying document for regression [here](P_3/MLScratch.pdf)
+You can find the accompanying document for both [here](P_3/MLScratch.pdf)
