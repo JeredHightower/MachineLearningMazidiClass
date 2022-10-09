@@ -17,3 +17,11 @@ You can find the accompanying document for regression [here](P_2/Regression.pdf)
 You can find my code for classification [here](P_2/Classification.Rmd)
 
 You can find the accompanying document for classification [here](P_2/Classification.pdf)
+
+## Portfolio Component 3: ML from Scratch
+
+You can find my code for logistic regression [here](P_3/MLScratch2.cpp)
+
+You can find my code for naive bayes [here](P_3/NaiveBayes.cpp)
+
+You can find the accompanying document for both [here](P_3/MLScratch.pdf)
