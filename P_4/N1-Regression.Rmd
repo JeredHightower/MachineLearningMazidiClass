@@ -1,0 +1,271 @@
+---
+title: "Regression- kNN, Linear, Decision tree"
+author: "Sai Gonuguntla, Haniyyah Hamid & Jered Hightower"
+date: "10/05/2022"
+source: "https://www.kaggle.com/datasets/budincsevity/szeged-weather"
+output:
+  pdf_document: default
+  html_notebook: default
+  html_document:
+    df_print: paged
+---
+
+
+### in linear regression the target variable y is quantitative and x is the predictor which can be quantitative or qualitative. It displays the relationship between x and y.  Strengths are,it works well when there is a linear pattern in the data,it has low variance,and is a pretty simple algorithm. Weaknesses are, it has high bias because its looking for a linear relation in the data, so it doesn't perform well when there are non-linear relationships.
+
+#read in the data set
+```{r}
+#options(stringsAsFactors = FALSE)
+df <- read.csv("weatherHistory.csv", header=TRUE)
+
+whist <- df[,c(4,5,6,7,8,9,11)]
+attach(whist)
+
+str(whist)
+```
+
+
+### a. Divide into train and test
+```{r}
+
+set.seed(1234)
+i <- sample(1:nrow(df), 0.80*nrow(df), replace=FALSE)
+train <- whist[i,]
+test <- whist[-i,]
+```
+
+
+### b. 5 R functions for data exploration using the training data.  
+```{r}
+tail(train,n=2)
+dim(train)
+str(train)
+summary(train)
+head(train,n=5)
+```
+
+
+### c. 2 informative graphs, using the training data. 
+Displays a histogram that shows windspeed frequency and a box plot which displays the humidity.
+```{r}
+
+par(mfrow=c(1,2))
+hist(Wind.Speed..km.h., col="slategray", main="wind speed frequency",xlab="wind speed")
+boxplot(Humidity,horizontal=TRUE, xlab="humidity")
+
+```
+
+
+### Build a linear regression with all predictors except columns 1,2,3,10 and 12 
+
+```{r}
+lm1 <- lm(Apparent.Temperature..C.~., data=train)
+summary(lm1)
+```
+
+### Evaluate
+
+```{r}
+pred1 <- predict(lm1, newdata=test)
+cor1 <- cor(pred1, test$Apparent.Temperature..C.)
+mse1 <- mean((pred1-test$Apparent.Temperature..C.)^2) 
+print(paste('correlation:', cor1))
+print(paste('mse:', mse1))
+```
+
+### kNN for regression
+
+cor is 0.9907, mse is 4.638
+
+```{r, warning=FALSE}
+library(caret)
+
+# fit the model
+fit <- knnreg(train[,1:7],train[,1],k=3)
+
+# Evaluate
+pred2 <- predict(fit, test[,1:7])
+cor_knn1  <- cor(pred2, test$Apparent.Temperature..C.)
+mse_knn1 <- mean((pred2- test$Apparent.Temperature..C.)^2) 
+rmse_knn1 <- (sqrt(mse_knn1))
+
+print(paste('correlation:', cor_knn1))
+print(paste('mse:',  mse_knn1))
+
+
+```
+
+### Scale the data
+
+```{r}
+train_scaled <- train[,1:7]
+means <- sapply(train_scaled,mean)
+stdvs <- sapply(train_scaled,sd)
+train_scaled <- scale(train_scaled, center=means, scale=stdvs)
+test_scaled <- scale(test[,1:7], center=means, scale=stdvs)
+
+```
+
+### kNN on scaled data
+
+scaling the data performed better. cor before was 0.9908 and after is 0.9986. mse before was 4.6386, and now is 0.3296
+
+```{r}
+fit <- knnreg(train_scaled, train$Apparent.Temperature..C., k=3)
+pred3 <- predict(fit, test_scaled)
+cor_knn2  <- cor(pred3, test$Apparent.Temperature..C.)
+mse_knn2 <- mean((pred3 - test$Apparent.Temperature..C.)^2) 
+
+print(paste('correlation:', cor_knn2))
+print(paste('mse:', mse_knn2))
+
+```
+
+### Find the best k
+
+Try various values of k. K=9 gves the best values
+
+```{r}
+
+cor_k <- rep(0,20)
+mse_k <- rep(0,20)
+
+i <- 1
+for (k in seq(1, 10, 2)){
+  fit_k <- knnreg(train_scaled,train$Apparent.Temperature..C., k=k)
+  pred_k <-predict(fit_k, test_scaled)
+  cor_k[i] <- cor(pred_k, test$Apparent.Temperature..C.)
+  mse_k[i] <- mean((pred_k - test$Apparent.Temperature..C.)^2)
+  print(paste("k=", k, cor_k[i], mse_k[i]))
+  i <- i + i
+}
+
+```
+
+
+```{r}
+which.min(mse_k)
+which.max(cor_k)
+```
+
+
+### scaled knn regression
+
+cor is 0.9988 and mse is 0.2788 which is better than on the scaled data using k=3
+
+```{r}
+fit <- knnreg(train_scaled, train$Apparent.Temperature..C., k=9)
+pred4 <- predict(fit, test_scaled)
+cor_knn3 <- cor(pred4, test$Apparent.Temperature..C.)
+mse_knn3 <- mean((pred4 - test$Apparent.Temperature..C.)^2)
+
+print(paste("cor=", cor_knn3))
+print(paste("mse=", mse_knn3))
+```
+
+
+### Using tree
+
+Correlation was 0.9786 and rmse was 2.19
+
+```{r}
+#install.packages("tree")
+library(tree)
+
+tree1 <- tree(Apparent.Temperature..C.~., data=train)
+summary(tree1)
+pred5 <- predict(tree1, newdata=test)
+print(paste('correlation:', cor(pred5, test$Apparent.Temperature..C.))) 
+rmse_tree <- sqrt(mean((pred5-test$Apparent.Temperature..C.)^2))
+print(paste('rmse:', rmse_tree))
+plot(tree1)
+text(tree1, cex=0.5, pretty=0)
+```
+
+### Cross validation
+
+to try to get better results
+```{r}
+cv_tree <- cv.tree(tree1)
+plot(cv_tree$size, cv_tree$dev, type='b')
+```
+
+### prune the tree
+
+```{r}
+tree_pruned <- prune.tree(tree1, best=5)
+plot(tree_pruned)
+text(tree_pruned, pretty=0)
+```
+
+
+### test on pruned tree
+
+For the unpruned tree, correlation was 0.9786 and rmse was 2.19. The cor for the pruned tree is 0.9625 which is slightly lower than the correlation for the unpruned tree, and the rmse is 2.8898 which is higher. So pruning didn't improve the result. Although decision tree didn't perform the best, random forest produced very good results with a correlation of 0.9996 and rmse of 0.3133. Bagging also performed really well with the correlation of 0.9999 and rmse of 0.1607.  For linear regression the correlation was 0.9949 and mse was 1.1591 so it performed better than using decision trees. Knn regression had a cor of 0.9908 and mse of 4.6386 and after scaling using k=9 we got a cor of 0.9988 and mse of 0.2788 which is much better. So overall not taking random forest and bagging into account, knn performed the best, then linear regression, followed by decision tree regression.
+
+```{r}
+
+pred_pruned <- predict(tree_pruned, newdata = test)
+cor_pruned <- cor(pred_pruned, test$Apparent.Temperature..C.)
+rmse_pruned <- rmse_pruned <- sqrt(mean((pred_pruned-test$Apparent.Temperature..C.)^2))
+
+print(paste('cor:', cor_pruned))
+print(paste('rmse:', rmse_pruned))
+
+```
+
+
+### Random Forest
+
+Will outperform the decision tree but will lose interpretability. 
+
+```{r}
+
+#install.packages("randomForest")
+library(randomForest)
+set.seed(1234)
+rf <- randomForest(Apparent.Temperature..C.~., data=train, importance=TRUE)
+rf
+```
+
+### predict on the random forest
+
+Correlation is slightly higher and rmse is much lower than what we got for linear regression.
+
+```{r}
+pred_rf <- predict(rf, newdata = test)
+cor_rf <- cor(pred_rf, test$Apparent.Temperature..C.)
+print(paste('cor:', cor_rf))
+rmse_rf <- sqrt(mean((pred_rf-test$Apparent.Temperature..C.)^2))
+print(paste('rmse:',rmse_rf))
+```
+
+### bagging
+
+```{r}
+bag <- randomForest(Apparent.Temperature..C.~., data=train, mtry = 6)
+bag
+```
+
+
+### predict on bagging
+
+bagging also produced good results with a high correlation of 0.9999 and rmse of 0.1607. It also did best out of all the algorithms.
+
+```{r}
+
+pred_bag <- predict(bag, newdata = test)
+cor_bag <- cor(pred_bag, test$Apparent.Temperature..C.)
+print(paste('cor:', cor_bag))
+rmse_bag <- sqrt(mean((pred_bag-test$Apparent.Temperature..C.)^2))
+print(paste('rmse:',rmse_bag))
+```
+
+
+###
+Linear regression outperformed decision tree regression likely due to the fact that linear regression usually does better than decision trees when the underlying function is linear. In the dataset used there is a strong linear relation hence the result. Decision trees suffers from high variance so it didn't do that well. However, random forest produced very good results because it counteracts the high variance. knn regression after scaling performed the best out of all algorithms overall likely because knn works well on low dimensions and there were only 6 features.
+
+
+
+
+
