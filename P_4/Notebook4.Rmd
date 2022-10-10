@@ -1,0 +1,88 @@
+---
+title: "PCA and LDA"
+author: "Jered Hightower, Haniyyah Hamid, & Sai Gonuguntla"
+output:
+  pdf_document: default
+  html_notebook: default
+  html_document:
+    df_print: paged
+editor_options:
+  chunk_output_type: inline
+---
+
+### Run PCA on the iris data
+
+```{r}
+library(caret)
+df <- read.csv("income_evaluation.csv", header=TRUE)
+i <- sample(1:1500, 1000, replace=FALSE)
+
+income_evaluation <- df[,c(1,5,13,15)]
+income_evaluation$income <- factor(income_evaluation$income)
+income_evaluation$age <- as.numeric(income_evaluation$age)
+income_evaluation$education.num <- as.numeric(income_evaluation$education.num)
+income_evaluation$hours.per.week <- as.numeric(income_evaluation$hours.per.week)
+str(income_evaluation)
+
+train <- income_evaluation[i,]
+test <- income_evaluation[-i,]
+set.seed(1234)
+pca_out <- preProcess(train[,1:3], method=c("center", "scale", "pca"))
+pca_out
+```
+
+### PCA plot
+
+```{r}
+train_pc <- predict(pca_out, train[, 1:3])
+test_pc <- predict(pca_out, test[,])
+
+plot(test_pc$PC1, test_pc$PC2, pch=c(23,21)[unclass(test_pc$income)], bg=c("red","green")[unclass(test$income)])
+```
+
+### PCA data in knn
+
+Now let's see if two principal components can predict class.
+```{r}
+train_df <- data.frame(train_pc$PC1, train_pc$PC2, train$income)
+test_df <- data.frame(test_pc$PC1, test_pc$PC2, test$income)
+library(class)
+set.seed(1234)
+pred <- knn(train=train_df[,1:2], test=test_df[,1:2], cl=train_df[,3], k=2)
+mean(pred==test$income)
+```
+The accuracy is a lower than if we used all 3 predictors. 
+
+
+```{r}
+library(tree)
+colnames(train_df) <- c("PC1", "PC2", "Income")
+colnames(test_df) <- c("PC1", "PC2", "Income")
+set.seed(1234)
+tree1 <- tree(Income~., data=train_df)
+plot(tree1)
+text(tree1, cex=0.5, pretty=0)
+
+pred <- predict(tree1, newdata=test_df, type="class")
+mean(pred==test$income)
+```
+
+With the decision tree we got a little higher accuracy.
+
+### LDA
+
+```{r}
+library(MASS)
+lda1 <- lda(income~., data=train)
+lda1$means
+```
+
+### predict on test
+
+```{r}
+lda_pred <- predict(lda1, newdata=test, type="class")
+# lda_pred$class
+mean(lda_pred$class==test$income)
+
+# nothing to plot, income is binary
+```
