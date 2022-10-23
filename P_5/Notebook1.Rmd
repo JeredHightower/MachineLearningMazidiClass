@@ -1,0 +1,172 @@
+---
+title: "SVM Regression"
+author: "Haniyyah Hamid, Jered Hightower"
+date: "10/18/2022"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+editor_options:
+  chunk_output_type: inline
+---
+
+Data set used: <https://www.kaggle.com/datasets/dhirajnirne/california-housing-data>
+
+## Loading packages
+
+```{r}
+library(e1071)
+library(MASS)
+```
+
+## Importing data
+
+```{r}
+df <- read.csv("housing.csv")
+str(df)
+```
+
+## Clean up data
+
+We will remove unnecessary columns. We will reduce the number of rows as well to be 10k to make tuning faster.
+
+```{r}
+df <- df[,c(3, 7, 8, 9)]
+df <- head(df, - 10000)
+#df$income <- factor(df$income)
+str(df)
+#head(df)
+```
+
+## Divide into train, test, validate
+
+```{r}
+set.seed(1234)
+spec <-c(train=.6, test=.2, validate=.2)
+i <- sample(cut(1:nrow(df),nrow(df)*cumsum(c(0,spec)), labels=names(spec)))
+train <- df[i=="train",]
+test <- df[i=="test",]
+vald <- df[i=="validate",]
+```
+
+## Plotting and statistically exploring the training data
+
+```{r}
+plot(train$median_income~train$housing_median_age, xlab="housing median age", ylab="median_income")
+plot(train$median_income~train$households, xlab="households", ylab="median_income")
+plot(train$median_income~train$median_house_value, xlab="median house value", ylab="median_income")
+summary(df)
+```
+
+Of the three graphs, the relationship between median income and the median house value seemed to be the most linear.The graph of median income vs. households seems to all be clustered in the bottom left corner of the graph. While the graph of the median income vs. housing median age yields a graph that is distributed across the x axis, making it difficult to determine a particular pattern. \## Try linear regression
+
+```{r}
+lm1 <- lm(median_income~., data=train)
+pred <- predict(lm1, newdata=test)
+cor_lm1 <- cor(pred, test$median_income)
+mse_lm1 <- mean((pred-test$median_income)^2)
+```
+
+## Try a linear kernel
+
+```{r}
+svm1 <- svm(median_income~., data=train, kernel="linear", cost=10, scale=TRUE)
+summary(svm1)
+```
+
+```{r}
+pred <- predict(svm1, newdata=test)
+cor_svm1 <- cor(pred, test$median_income)
+mse_svm1 <- mean((pred - test$median_income)^2)
+```
+
+## Tune
+
+```{r}
+tune_svm1 <- tune(svm, median_income~., data=vald, kernel="linear", ranges=list(cost=c(0.001, 0.01, 0.1, 1, 5, 10, 100)))
+summary(tune_svm1)
+```
+
+## Evaluate on best linear SVM
+
+```{r}
+pred <- predict(tune_svm1$best.model, newdata=test)
+cor_svm1_tune <- cor(pred, test$median_income)
+mse_svm1_tune <- mean((pred - test$median_income)^2)
+```
+
+## Try a polynomial kernel
+
+```{r}
+svm2 <- svm(median_income~., data=train, kernel="polynomial", cost=10, scale=TRUE)
+summary(svm2)
+```
+
+```{r}
+pred <- predict(svm2, newdata=test)
+cor_svm2 <- cor(pred, test$median_income)
+mse_svm2 <- mean((pred - test$median_income)^2)
+```
+
+## Try a radial kernel
+
+```{r}
+svm3 <- svm(median_income~., data=train, kernel="radial", cost=10, gamma=1, scale=TRUE)
+summary(svm3)
+```
+
+```{r}
+pred <- predict(svm3, newdata=test)
+cor_svm3 <- cor(pred, test$median_income)
+mse_svm3 <- mean((pred - test$median_income)^2)
+```
+
+## Tune hyperparameters
+
+```{r}
+set.seed(1234)
+tune.out <- tune(svm, median_income~., data=vald, kernel="radial", ranges=list(cost=c(0.1, 1, 10, 100, 1000), gamma=c(0.5,1,2,3,4)))
+
+summary(tune.out)
+```
+
+```{r}
+svm4 <- svm(median_income~., data=train, kernel="radial", cost=1, gamma=0.5, scale=TRUE)
+summary(svm4)
+```
+
+```{r}
+pred <- predict(svm4, newdata=test)
+cor_svm4 <- cor(pred, test$median_income)
+mse_svm4 <- mean((pred - test$median_income)^2)
+```
+
+## Comparing statistics of each of the SVM kernels
+
+First, the correlations of each kernel.
+
+```{r}
+print(paste("cor_lm1 = ", cor_lm1))
+print(paste("cor_svm1_tune = ", cor_svm1_tune))
+print(paste("cor_svm2 = ", cor_svm2))
+print(paste("cor_svm3 = ", cor_svm3))
+print(paste("cor_svm4 = ", cor_svm4))
+```
+
+We see the greatest correlation was found when performing logistic regression and the linear kernel of SVM is almost the exact same, meaning the linear decision boundary probably yielded the best correlation of the 3 kernels. The worst was the polynomial SVM kernel.
+
+Now, the mean standard errors of each kernel.
+
+```{r}
+print(paste("mse_lm1 = ", mse_lm1))
+print(paste("mse_svm1_tune = ", mse_svm1_tune))
+print(paste("mse_svm2 = ", mse_svm2))
+print(paste("mse_svm3 = ", mse_svm3))
+print(paste("mse_svm4 = ", mse_svm4))
+```
+
+We see the lowest MSE was found when performing the linear SVM kernel, which also yielded about the same as the logistic regression model. The highest MSE of the kernels was the polynomial SVM kernel.
+
+The linear SVM kernel also yielded the most support vectors as well.
+
+Therefore, we can assume that because of all the given results, the linear SVM kernel performed the best of the 3 kernels.

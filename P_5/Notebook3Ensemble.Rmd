@@ -1,0 +1,148 @@
+---
+title: "Ensemble Methods"
+author: "Jered Hightower, Haniyyah Hamid"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+https://www.kaggle.com/datasets/vicsuperman/prediction-of-music-genre
+
+```{r}
+original <- read.csv("music_genre.csv")
+original$key <- factor(original$key)
+original$tempo <- as.numeric(original$tempo)
+original$mode <- factor(original$mode)
+original$music_genre <- factor(original$music_genre)
+
+df <- original[, -c(1,2,3,7,8,16)]
+
+df <- df[complete.cases(df),]
+
+df$key <- droplevels(df$key)
+df$mode <- droplevels(df$mode)
+df$music_genre <- droplevels(df$music_genre)
+
+str(df)
+```
+
+
+### Train Test Split
+```{r}
+set.seed(1234)
+i <- sample(nrow(df), .75*nrow(df), replace=FALSE)
+train <- df[i,]
+test <- df[-i,]
+```
+
+### Logistic Regression Baseline
+```{r}
+library(nnet)
+library(tidyverse)
+
+model <- multinom(music_genre~., data = train)
+summary(model)
+
+pred <- model %>% predict(test)
+
+# Accuracy
+mean(pred == test$music_genre)
+```
+
+
+### Random Forest 
+```{r}
+library(randomForest)
+set.seed(1234)
+
+startTime <- Sys.time()
+
+rf <- randomForest(music_genre~., data=train, importance=TRUE)
+
+endTime <- Sys.time()
+print(paste("Total time: ", endTime - startTime))
+
+rf
+```
+
+
+```{r}
+library(mltools)
+
+pred <- predict(rf, newdata=test, type="response")
+acc_rf <- mean(pred==test$music_genre)
+mcc_rf <- mcc(factor(pred), test$music_genre)
+print(paste("accuracy=", acc_rf))
+print(paste("mcc=", mcc_rf))
+```
+
+
+### boosting from adabag library
+
+```{r}
+library(adabag)
+
+startTime <- Sys.time()
+
+adab1 <- boosting(music_genre~., data=train, boos=TRUE, mfinal=20, coeflearn='Breiman')
+
+
+endTime <- Sys.time()
+print(paste("Total time: ", endTime - startTime))
+
+summary(adab1)
+```
+
+
+```{r}
+pred <- predict(adab1, newdata=test, type="response")
+acc_adabag <- mean(pred$class==test$music_genre)
+mcc_adabag <- mcc(factor(pred$class), test$music_genre)
+print(paste("accuracy=", acc_adabag))
+print(paste("mcc=", mcc_adabag))
+```
+
+### XGBoost
+
+```{r}
+library(xgboost)
+
+genres <- df$music_genre
+label <- as.integer(df$music_genre) - 1
+df$music_genre = NULL
+
+train_label <- label[i]
+test_label <- label[-i]
+
+train_matrix <- data.matrix(df[i,])
+test_matrix <- data.matrix(df[-i,])
+
+num_class = length(levels(genres))
+
+startTime <- Sys.time()
+
+
+model <- xgboost(data=train_matrix, label=train_label, nrounds=100, num_class = num_class, objective='multi:softprob')
+
+
+endTime <- Sys.time()
+print(paste("Total time: ", endTime - startTime))
+
+summary(model)
+```
+
+```{r}
+probs <- predict(model, test_matrix, reshape=T)
+probs <- as.data.frame(probs)
+colnames(probs) <- levels(genres)
+
+# Use the predicted label with the highest probability
+pred <- apply(probs,1,function(x) colnames(probs)[which.max(x)])
+test_label <- levels(genres)[test_label + 1]
+
+acc_xg <- mean(pred==test_label)
+mcc_xg <- mcc(pred, test_label)
+print(paste("accuracy=", acc_xg))
+print(paste("mcc=", mcc_xg))
+```

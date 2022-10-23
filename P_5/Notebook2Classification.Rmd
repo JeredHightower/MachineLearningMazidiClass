@@ -1,0 +1,131 @@
+---
+title: "SVM Classification"
+author: "Jered Hightower, Haniyyah Hamid"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+https://www.kaggle.com/datasets/vicsuperman/prediction-of-music-genre
+
+```{r}
+original <- read.csv("music_genre.csv")
+original$key <- factor(original$key)
+original$tempo <- as.numeric(original$tempo)
+original$mode <- factor(original$mode)
+original$music_genre <- factor(original$music_genre)
+
+df <- original[, -c(1,2,3,7,8,16)]
+
+df <- df[complete.cases(df),]
+
+df$key <- droplevels(df$key)
+df$mode <- droplevels(df$mode)
+df$music_genre <- droplevels(df$music_genre)
+
+str(df)
+```
+
+### Train, test, validate
+```{r}
+set.seed(1234)
+spec <- c(train=.6, test=.2, validate=.2)
+i <- sample(cut(1:nrow(df), nrow(df) * cumsum(c(0, spec)), labels=names(spec)))
+
+train <- df[i=="train",]
+test <- df[i=="test",]
+vald <- df[i=="validate",]
+```
+
+### Data Exploration
+```{r}
+# How is genre associated with key?
+
+# How often each genre appears
+round(table(train$music_genre)/nrow(train), 2)
+
+# Proportion of Genre that is in a specific key
+tr <- table(train$music_genre, train$key)
+prop <- prop.table(tr, margin = 1)
+round(prop, 2)
+```
+
+### Plotting
+```{r}
+# Alternative, Anime, Blues, Classical, Country, Electronic, Hip-Hop, Jazz, Rap, Rock
+plot(df$music_genre, df$mode, xlab = "genre", ylab = "mode")
+```
+
+### Linear SVM
+```{r}
+library(e1071)
+svm1 <- svm(music_genre~., data=train, kernel="linear", cost=10, scale=TRUE)
+
+summary(svm1)
+```
+
+### Evaluate
+```{r}
+library(caret)
+
+pred <- predict(svm1, newdata=test)
+caret:: confusionMatrix(as.factor(pred), reference=test$music_genre)
+```
+
+### Tune
+```{r}
+tune_svm1 <- tune(svm, music_genre~., data=vald, kernel="linear", ranges = list(cost=c(.001, .01, .1, 1, 5, 10, 100)))
+summary(tune_svm1)
+```
+
+# Evaluate on best linear svm
+The best linear svm happens to be the one we first used. We already found the optimal cost of 10. No need to rerun model.
+
+# Try Polynomial Kernel
+```{r}
+svm2 <- svm(music_genre~., data = train, kernel="polynomial", cost = 10, scale = TRUE)
+summary(svm2)
+```
+
+# Evaluate
+```{r}
+pred2 <- predict(svm2, newdata=test)
+caret:: confusionMatrix(as.factor(pred2), reference=test$music_genre)
+```
+
+# Tune hyperparameters (tried but it wouldn't converge: reaching max number of iterations)
+```{r}
+tune.poly <- tune(svm, music_genre~., data=vald, kernel="polynomial", ranges = list(cost=c(.1, 1, 5, 10, 100), degree=c(3,4,5), coef.0=c(0,1,2)))
+summary(tune.poly)
+```
+
+# Evaluate on best polynomial svm
+The best polynomial svm also happens to be the one we first used. Cost = 10, Degree = 3, Coef.0 = 0. We already found the optimal values. No need to rerun model.
+
+# Try a radial kernel
+```{r}
+svm3 <- svm(music_genre~., data = train, kernel = "radial", cost=10, gamma=1, scale=TRUE)
+summary(svm3)
+```
+
+# Evaluate
+```{r}
+pred4 <- predict(svm3, newdata=test)
+caret:: confusionMatrix(as.factor(pred4), reference=test$music_genre)
+```
+
+# Tune hyperparameters
+```{r}
+tune.out <- tune(svm, music_genre~., data=vald, kernel="radial", ranges = list(cost=c(.1, 1, 10, 100, 1000), gamma=c(.5, 1, 2, 3 ,4)))
+summary(tune.out)
+```
+
+# Evaluate on best radial svm
+```{r}
+svm4 <- svm(music_genre~., data = train, kernel = "radial", cost=1, gamma=.5, scale=TRUE)
+summary(svm4)
+
+pred5 <- predict(svm4, newdata=test)
+caret:: confusionMatrix(as.factor(pred5), reference=test$music_genre)
+```
