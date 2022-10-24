@@ -1,7 +1,7 @@
 ---
 title: "SVM Regression"
 author: "Haniyyah Hamid, Jered Hightower"
-date: "10/18/2022"
+date: "10/23/2022"
 output:
   pdf_document: default
   html_document:
@@ -58,7 +58,9 @@ plot(train$median_income~train$median_house_value, xlab="median house value", yl
 summary(df)
 ```
 
-Of the three graphs, the relationship between median income and the median house value seemed to be the most linear.The graph of median income vs. households seems to all be clustered in the bottom left corner of the graph. While the graph of the median income vs. housing median age yields a graph that is distributed across the x axis, making it difficult to determine a particular pattern. \## Try linear regression
+Of the three graphs, the relationship between median income and the median house value seemed to be the most linear.The graph of median income vs. households seems to all be clustered in the bottom left corner of the graph. While the graph of the median income vs. housing median age yields a graph that is distributed across the x axis, making it difficult to determine a particular pattern.
+
+## Try linear regression
 
 ```{r}
 lm1 <- lm(median_income~., data=train)
@@ -153,7 +155,7 @@ print(paste("cor_svm3 = ", cor_svm3))
 print(paste("cor_svm4 = ", cor_svm4))
 ```
 
-We see the greatest correlation was found when performing logistic regression and the linear kernel of SVM is almost the exact same, meaning the linear decision boundary probably yielded the best correlation of the 3 kernels. The worst was the polynomial SVM kernel.
+We see the greatest correlation was found with the radial SVM kernel.Meaning the radial decision boundary probably yielded the best correlation of the 3 kernels. The worst was the polynomial SVM kernel.
 
 Now, the mean standard errors of each kernel.
 
@@ -165,8 +167,7 @@ print(paste("mse_svm3 = ", mse_svm3))
 print(paste("mse_svm4 = ", mse_svm4))
 ```
 
-We see the lowest MSE was found when performing the linear SVM kernel, which also yielded about the same as the logistic regression model. The highest MSE of the kernels was the polynomial SVM kernel.
+We see the lowest MSE was found when performing the radial SVM kernel. The highest MSE of the kernels was the polynomial SVM kernel.
 
-The linear SVM kernel also yielded the most support vectors as well.
 
-Therefore, we can assume that because of all the given results, the linear SVM kernel performed the best of the 3 kernels.
+Therefore, we can assume that because of all the given results, the radial SVM kernel performed the best of the 3 kernels.

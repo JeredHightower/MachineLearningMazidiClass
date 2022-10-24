@@ -36,23 +36,29 @@ train <- df[i,]
 test <- df[-i,]
 ```
 
-### Logistic Regression Baseline
+### Decision Tree
 ```{r}
-library(nnet)
-library(tidyverse)
+library(tree)
 
-model <- multinom(music_genre~., data = train)
-summary(model)
+startTime <- Sys.time()
 
-pred <- model %>% predict(test)
+tree <- tree(music_genre~., data = train)
 
-# Accuracy
-mean(pred == test$music_genre)
+endTime <- Sys.time()
+print(paste("Total time: ", endTime - startTime))
+
+tree_pred <- predict(tree, newdata=test, type="class")
+table(tree_pred, test$music_genre)
+
+acc_dt <- mean(tree_pred==test$music_genre)
+mcc_dt <- mcc(factor(tree_pred), test$music_genre)
+print(paste("accuracy=", acc_dt))
+print(paste("mcc=", mcc_dt))
 ```
-
 
 ### Random Forest 
 ```{r}
+library(mltools)
 library(randomForest)
 set.seed(1234)
 
@@ -68,8 +74,6 @@ rf
 
 
 ```{r}
-library(mltools)
-
 pred <- predict(rf, newdata=test, type="response")
 acc_rf <- mean(pred==test$music_genre)
 mcc_rf <- mcc(factor(pred), test$music_genre)
@@ -146,3 +150,17 @@ mcc_xg <- mcc(pred, test_label)
 print(paste("accuracy=", acc_xg))
 print(paste("mcc=", mcc_xg))
 ```
+
+### Analysis of Results
+Decision Tree: Time-.601 seconds, Acc-.416, MCC-.360
+Random Forest: Time-4.575 minutes, Acc-.553, MCC-.504
+Adaboost: Time-41.386 seconds, Acc-.439, MCC-.388
+XGBoost: Time-14.349 seconds, Acc-.563, MCC-.514
+
+XGBoost I would say is the overall winner here. It achieved the highest accuracy and mcc of all the models tested and within a reasonable time (2nd fastest).
+
+Random forest produced good results on par with XGBoost, but was very computationally expensive and took the longest by far.
+
+Adaboost was alright, but didn't produce results as good as the above models. It's just slightly better than decision tree, but takes much more time than it and XGBoost.
+
+Decision tree ran the absolute fastest, but consequently had the worst accuracy and mcc.
