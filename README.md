@@ -28,3 +28,6 @@ You can find the accompanying document for both [here](P_3/MLScratch.pdf)
 
 ## Portfolio Component 4: Searching for Similarity
 You can find my team's code and documents [here](P_4)
+
+## Portfolio Component 5: Kernel and Ensemble Methods
+You can find my team's code and documents [here](P_5)
