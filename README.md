@@ -31,3 +31,6 @@ You can find my team's code and documents [here](P_4)
 
 ## Portfolio Component 5: Kernel and Ensemble Methods
 You can find my team's code and documents [here](P_5)
+
+## Portfolio Component 6: ML with SKLearn
+You can find my code and document [here](P_6)
